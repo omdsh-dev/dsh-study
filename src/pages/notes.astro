@@ -4,7 +4,7 @@ import Base from '../layouts/Base.astro';
 <Base active="/notes/" title="设计笔记 Agent Notes · dsh-study">
   <div class="page-hero">
     <div class="wrap">
-      <h1>设计笔记 <span class="grad-text">Agent Notes</span></h1>
+      <h1>设计笔记 <span class="accent">Agent Notes</span></h1>
       <p>dsh 的独特机制：每个非平凡变更必须附一篇决策笔记（为什么、放弃了什么），生命周期为 proposed → implemented / rejected → archived。以下笔记支持中英双语阅读。</p>
     </div>
   </div>
@@ -15,7 +15,7 @@ import Base from '../layouts/Base.astro';
       <button data-lc="proposed">proposed</button>
       <button data-lc="rejected">rejected</button>
       <button data-lc="archived">archived</button>
-      <select id="cls" style="font:inherit;font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid var(--ds-border)">
+      <select id="cls" style="font:inherit;font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid var(--border)">
         <option value="">全部类别</option>
         <option value="architecture">architecture</option>
         <option value="feature">feature</option>
@@ -24,11 +24,11 @@ import Base from '../layouts/Base.astro';
         <option value="process">process</option>
         <option value="testing">testing</option>
       </select>
-      <input type="search" id="q" placeholder="搜索笔记标题…" style="font:inherit;font-size:13px;padding:6px 14px;border-radius:999px;border:1px solid var(--ds-border);min-width:200px" />
+      <input type="search" id="q" placeholder="搜索笔记标题…" style="font:inherit;font-size:13px;padding:6px 14px;border-radius:999px;border:1px solid var(--border);min-width:200px" />
       <span class="feed-count" id="count"></span>
     </div>
     <div class="card" style="padding:0" id="list">
-      <div style="padding:32px;text-align:center;color:var(--ds-ink-3)">加载中…</div>
+      <div style="padding:32px;text-align:center;color:var(--ink-3)">加载中…</div>
     </div>
   </div>
 
@@ -37,8 +37,8 @@ import Base from '../layouts/Base.astro';
     <div class="panel">
       <button class="close" id="close">✕</button>
       <div id="note-body" class="prose"><p>加载中…</p></div>
-      <hr style="margin:28px 0 12px;border:none;border-top:1px solid var(--ds-border)" />
-      <div id="note-links" style="font-size:13px;color:var(--ds-ink-3)"></div>
+      <hr style="margin:28px 0 12px;border:none;border-top:1px solid var(--border)" />
+      <div id="note-links" style="font-size:13px;color:var(--ink-3)"></div>
     </div>
   </div>
 </Base>
@@ -76,11 +76,11 @@ import Base from '../layouts/Base.astro';
     }
     if (items.length > 400) {
       const tip = document.createElement('div');
-      tip.style.cssText = 'padding:14px;text-align:center;color:var(--ds-ink-3);font-size:13px';
+      tip.style.cssText = 'padding:14px;text-align:center;color:var(--ink-3);font-size:13px';
       tip.textContent = `仅显示最新 400 篇，共 ${items.length} 篇匹配 —— 用筛选器缩小范围。`;
       frag.appendChild(tip);
     }
-    if (!items.length) $list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ds-ink-3)">没有匹配的笔记。</div>';
+    if (!items.length) $list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ink-3)">没有匹配的笔记。</div>';
     else $list.appendChild(frag);
   }
 
@@ -91,7 +91,7 @@ import Base from '../layouts/Base.astro';
     document.body.style.overflow = 'hidden';
     const body = document.getElementById('note-body');
     const links = document.getElementById('note-links');
-    body.innerHTML = '<div style="padding:60px 0;text-align:center;color:var(--ds-ink-3);font-size:15px"><span class="chip blue">正在从 GitHub 加载笔记原文…</span></div>';
+    body.innerHTML = '<div style="padding:60px 0;text-align:center;color:var(--ink-3);font-size:15px"><span class="chip blue">正在从 GitHub 加载笔记原文…</span></div>';
     links.innerHTML = '';
     // 中文优先，失败回退英文
     for (const zh of [!!n.tZh, false]) {

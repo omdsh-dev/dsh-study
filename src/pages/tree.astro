@@ -4,7 +4,7 @@ import Base from '../layouts/Base.astro';
 <Base active="/tree/" title="Worktree 浏览器 · dsh-study">
   <div class="page-hero">
     <div class="wrap">
-      <h1>Worktree <span class="grad-text">任意时刻的代码树</span></h1>
+      <h1>Worktree <span class="accent">任意时刻的代码树</span></h1>
       <p>拖动时间轴翻到任意提交时刻，浏览当时存在的目录与文件；文件内容按需从 GitHub raw 加载。</p>
     </div>
   </div>
@@ -15,15 +15,15 @@ import Base from '../layouts/Base.astro';
         <input type="range" id="slider" min="0" value="0" step="1" />
         <button class="btn ghost sm" id="next">→</button>
         <button class="btn ghost sm" id="latest">最新</button>
-        <input type="search" id="sha" placeholder="sha 前 8 位…" style="width:150px;font-family:var(--ds-mono);font-size:13px;padding:8px 12px;border-radius:999px;border:1px solid var(--ds-border)" />
+        <input type="search" id="sha" placeholder="sha 前 8 位…" style="width:150px;font-family:var(--mono);font-size:13px;padding:8px 12px;border-radius:999px;border:1px solid var(--border)" />
       </div>
       <div class="pos" id="posinfo">加载中…</div>
     </div>
     <div class="tree-layout" style="margin-top:18px">
-      <div class="card tree-panel" id="tree"><div style="padding:24px;color:var(--ds-ink-3)">加载树…</div></div>
+      <div class="card tree-panel" id="tree"><div style="padding:24px;color:var(--ink-3)">加载树…</div></div>
       <div class="file-view" id="view">
         <div class="fv-head"><span>← 点左侧文件查看内容</span></div>
-        <pre style="color:var(--dark-ink-3)">选择任意文件浏览该提交时刻的原文。</pre>
+        <pre style="color:var(--navy-ink-3)">选择任意文件浏览该提交时刻的原文。</pre>
       </div>
     </div>
   </div>
@@ -91,13 +91,13 @@ import Base from '../layouts/Base.astro';
     const [tree, commit] = await Promise.all([buildTree(idx), commitMeta(idx)]);
     S.tree = tree;
     S.commit = commit;
-    $pos.innerHTML = `<span class="mono" style="color:var(--ds-blue)">${commit.h.slice(0, 8)}</span> · ${esc(commit.s)} <span style="color:var(--ds-ink-3)">· ${esc(commit.an)} · ${fmtDateTime(commit.t)} · #${idx + 1}/${S.total}</span> · <a href="${githubCommit(commit.h)}" target="_blank" rel="noopener">GitHub ↗</a>`;
+    $pos.innerHTML = `<span class="mono" style="color:var(--blue)">${commit.h.slice(0, 8)}</span> · ${esc(commit.s)} <span style="color:var(--ink-3)">· ${esc(commit.an)} · ${fmtDateTime(commit.t)} · #${idx + 1}/${S.total}</span> · <a href="${githubCommit(commit.h)}" target="_blank" rel="noopener">GitHub ↗</a>`;
     renderDir(S.dir);
     renderPlaceholder();
   }
 
   function renderPlaceholder() {
-    $view.innerHTML = `<div class="fv-head"><span>${esc(S.commit.h.slice(0, 8))} 时刻的文件</span><span>#${S.idx + 1}</span></div><pre style="color:var(--dark-ink-3)">点左侧任意文件，浏览该提交时刻的原文（内容从 GitHub raw 拉取）。</pre>`;
+    $view.innerHTML = `<div class="fv-head"><span>${esc(S.commit.h.slice(0, 8))} 时刻的文件</span><span>#${S.idx + 1}</span></div><pre style="color:var(--navy-ink-3)">点左侧任意文件，浏览该提交时刻的原文（内容从 GitHub raw 拉取）。</pre>`;
   }
 
   function renderDir(dir) {
@@ -147,12 +147,12 @@ import Base from '../layouts/Base.astro';
       const row = document.createElement('button');
       row.className = 'tree-row' + (S.changed.has(p) ? ' changed' : '');
       row.title = p;
-      row.innerHTML = `<span class="ico">📄</span><span class="nm">${esc(name)}</span>${info.size >= 0 ? `<span style="color:var(--ds-ink-3);font-size:11px">${(info.size / 1024).toFixed(1)}k</span>` : ''}`;
+      row.innerHTML = `<span class="ico">📄</span><span class="nm">${esc(name)}</span>${info.size >= 0 ? `<span style="color:var(--ink-3);font-size:11px">${(info.size / 1024).toFixed(1)}k</span>` : ''}`;
       row.addEventListener('click', () => openFile(p));
       list.appendChild(row);
     });
     if (!dirs.size && !files.length) {
-      list.innerHTML = '<div style="padding:20px;color:var(--ds-ink-3);font-size:13px">（空目录或历史时刻该目录不存在）</div>';
+      list.innerHTML = '<div style="padding:20px;color:var(--ink-3);font-size:13px">（空目录或历史时刻该目录不存在）</div>';
     }
     $tree.appendChild(list);
   }

@@ -25,10 +25,10 @@ const days = Math.round((overview.headTs - overview.firstTs) / 86400);
 ---
 <Base>
   <section class="hero">
-    <div class="wrap" style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:40px;align-items:center">
+    <div class="wrap hero-grid" style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:40px;align-items:center">
       <div>
         <span class="chip blue">非官方 · 社区导览站</span>
-        <h1>DeepSeek Harness<br /><span class="grad-text">开发演进史</span></h1>
+        <h1>DeepSeek Harness<br /><span class="accent">开发演进史</span></h1>
         <p class="lede">
           dsh 是 DeepSeek 开源的插件化 AI Agent 框架（Everything is a Plugin）。
           本站逐条跟踪它的 {overview.totalCommits.toLocaleString()} 次提交：每条 diff 都有一句中文「省流」，
@@ -40,16 +40,16 @@ const days = Math.round((overview.headTs - overview.firstTs) / 86400);
         </div>
       </div>
       <div class="card" style="padding:0;overflow:hidden">
-        <div style="background:var(--dark-bg);padding:18px 20px;font-family:var(--ds-mono);font-size:12px;line-height:1.9">
+        <div style="background:var(--navy);padding:18px 20px;font-family:var(--mono);font-size:12px;line-height:1.9">
           <div style="color:#6b7699">$ npx @deepseek-ai/dsh web</div>
           <div style="color:#7ee2a8">✓ harness ready at 127.0.0.1:3080</div>
           <div style="color:#9fb2ff">everything is a plugin</div>
-          <div style="color:#6b7699">{overview.totalCommits.toLocaleString()} commits · {notes.total} agent notes · {days} days</div>
+          <div style="color:#8691a1;font-size:11px">{overview.totalCommits.toLocaleString()} commits · {notes.total} agent notes · {days} days</div>
         </div>
         <div style="padding:16px 20px;display:flex;gap:18px;justify-content:space-between">
-          <div><div class="num grad-text" style="font-weight:800;font-size:20px">{fmtNum(github.repo.stars)}</div><div style="font-size:12px;color:var(--ds-ink-3)">Stars</div></div>
-          <div><div style="font-weight:800;font-size:20px">{fmtNum(github.repo.forks)}</div><div style="font-size:12px;color:var(--ds-ink-3)">Forks</div></div>
-          <div><div style="font-weight:800;font-size:20px">{stats.authorCount}</div><div style="font-size:12px;color:var(--ds-ink-3)">贡献者</div></div>
+          <div><div class="num accent" style="font-weight:800;font-size:20px">{fmtNum(github.repo.stars)}</div><div style="font-size:12px;color:var(--ink-3)">Stars</div></div>
+          <div><div style="font-weight:800;font-size:20px">{fmtNum(github.repo.forks)}</div><div style="font-size:12px;color:var(--ink-3)">Forks</div></div>
+          <div><div style="font-weight:800;font-size:20px">{stats.authorCount}</div><div style="font-size:12px;color:var(--ink-3)">贡献者</div></div>
         </div>
       </div>
     </div>
@@ -58,14 +58,14 @@ const days = Math.round((overview.headTs - overview.firstTs) / 86400);
   <section class="section">
     <div class="wrap">
       <div class="stat-grid">
-        <div class="card stat-card"><div class="num grad-text">{fmtNum(github.repo.stars)}</div><div class="lbl">GitHub Stars</div></div>
+        <div class="card stat-card"><div class="num accent">{fmtNum(github.repo.stars)}</div><div class="lbl">GitHub Stars</div></div>
         <div class="card stat-card"><div class="num">{overview.totalCommits.toLocaleString()}</div><div class="lbl">提交（master）</div></div>
         <div class="card stat-card"><div class="num">{stats.authorCount}</div><div class="lbl">贡献者</div></div>
         <div class="card stat-card"><div class="num">{fmtNum(github.repo.forks)}</div><div class="lbl">Forks</div></div>
         <div class="card stat-card"><div class="num">{fmtNum(github.repo.discussionsTotal)}</div><div class="lbl">社区讨论</div></div>
         <div class="card stat-card"><div class="num">{notes.total}</div><div class="lbl">设计笔记</div></div>
       </div>
-      <p style="color:var(--ds-ink-3);font-size:13px;margin:14px 2px 0">
+      <p style="color:var(--ink-3);font-size:13px;margin:14px 2px 0">
         首次提交 {fmtDate(overview.firstTs)} · 最新提交 {fmtDate(overview.headTs)} · {days} 天 · 数据快照 {new Date(github.generatedAt).toISOString().slice(0, 10)}
       </p>
     </div>
@@ -76,7 +76,7 @@ const days = Math.round((overview.headTs - overview.firstTs) / 86400);
       <h2 class="section-title">最近的重要变更</h2>
       <p class="section-sub">重要性 ≥ 4/5 的提交（AI 评级），完整列表见<a href={`${B}commits/`}>提交流</a></p>
       <div class="card" style="padding:0">
-        {recent.length === 0 && <div style="padding:24px;color:var(--ds-ink-3)">摘要回填进行中，稍后可见。</div>}
+        {recent.length === 0 && <div style="padding:24px;color:var(--ink-3)">摘要回填进行中，稍后可见。</div>}
         {recent.map((m) => (
           <div class="commit-item">
             <div class="commit-head">

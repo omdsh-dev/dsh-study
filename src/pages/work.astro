@@ -1,0 +1,228 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base active="/work/" title="工作流 · dsh-study">
+  <div class="page-hero">
+    <div class="wrap">
+      <h1>工作流 <span class="accent">Git 过程图</span></h1>
+      <p>dsh 团队以 git worktree 方式并行开发：每个任务一条分支（worktree），完成后合入 master。这张图还原了每一次分叉、并行与合入——点击节点看这条分支做了什么、是谁做的。</p>
+    </div>
+  </div>
+
+  <div class="section wrap">
+    <div class="work-tabs">
+      <button id="tab-graph" class="on">Git 过程图</button>
+      <button id="tab-authors">成员画像</button>
+    </div>
+
+    <div id="view-graph">
+      <div class="work-range" id="range"></div>
+      <div class="card gitgraph-card">
+        <div id="graph" style="min-height:120px;display:grid;place-items:center;color:var(--ink-3)">加载中…</div>
+      </div>
+      <h2 class="section-title" style="margin-top:36px">分支流</h2>
+      <p class="section-sub" id="list-sub"></p>
+      <div class="card" style="padding:0" id="stream-list"></div>
+    </div>
+
+    <div id="view-authors" style="display:none">
+      <p class="section-sub">按提交量排序的主要成员，画像由 AI 根据其提交历史生成</p>
+      <div class="author-grid" id="authors">
+        <div style="padding:32px;color:var(--ink-3)">加载中…</div>
+      </div>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { fetchJSON, fmtDate, githubCommit, B } from '../lib/data.js';
+
+  const S = { work: null, sums: { streams: {}, authors: {} }, rangeDays: 7, sel: null, tab: 'graph' };
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const PALETTE = ['#4176E6', '#2E609F', '#152443', '#6C87D6', '#3D5A9E', '#8691A1', '#5471C4', '#1B2947'];
+  const avatarColor = (name) => PALETTE[[...name].reduce((h, c) => h + c.charCodeAt(0), 0) % PALETTE.length];
+
+  const RANGES = [[7, '近 7 天'], [30, '近 30 天'], [90, '近 90 天'], [0, '全部']];
+
+  // ---------- 图形化 git 过程 ----------
+  function windowStreams() {
+    const streams = S.work.streams;
+    if (!streams.length) return [];
+    const t1 = streams[0].at + 86400;
+    const t0 = S.rangeDays ? t1 - S.rangeDays * 86400 : streams[streams.length - 1].forkTs - 86400;
+    const inWin = streams.filter((s) => s.at > t0 && s.forkTs < t1);
+    return { t0, t1, inWin };
+  }
+
+  function renderGraph() {
+    const { t0, t1, inWin } = windowStreams();
+    const masterY = 36, laneH = 15, maxLanes = 120;
+    // 泳道分配：按分叉时间排序，贪心找最近空闲泳道（master 下方展开）
+    const sorted = [...inWin].sort((a, b) => a.forkTs - b.forkTs);
+    const laneEnds = [];
+    for (const s of sorted) {
+      let li = laneEnds.findIndex((t) => t < s.forkTs);
+      if (li === -1) { li = laneEnds.length; laneEnds.push(0); }
+      laneEnds[li] = s.at;
+      s.lane = li;
+    }
+    const lanes = Math.min(laneEnds.length, maxLanes);
+    // 动态画布：每个合入节点保底 14px 横向空间，保证可点；超出部分横向滚动
+    const padL = 92, padR = 56;
+    const shown = sorted.filter((s) => s.lane < maxLanes);
+    const W = Math.max(1040, shown.length * 14 + padL + padR);
+    const H = masterY + lanes * laneH + 58;
+    const X = (t) => padL + ((t - t0) / (t1 - t0)) * (W - padL - padR);
+
+    let g = '';
+    // 时间网格与标签（按像素间距取整，避免边缘裁切）
+    const labelCount = Math.max(3, Math.min(8, Math.floor((W - padL - padR) / 170)));
+    for (let i = 0; i <= labelCount; i++) {
+      const t = t0 + ((t1 - t0) * i) / labelCount;
+      const x = X(t);
+      g += `<line x1="${x}" y1="14" x2="${x}" y2="${masterY + lanes * laneH + 8}" stroke="rgba(0,0,0,0.05)"/>`;
+      g += `<text x="${x + 4}" y="${H - 10}">${fmtDate(t).slice(5)}</text>`;
+    }
+    // master 主线（标签放在线起点左侧留白区，避免与节点碰撞）
+    g += `<line x1="${padL}" y1="${masterY}" x2="${W - 12}" y2="${masterY}" stroke="#1E232C" stroke-width="2"/>`;
+    g += `<text x="10" y="${masterY + 4}" style="font-weight:700;fill:#1E232C;font-size:11px">master</text>`;
+    g += `<text x="10" y="${masterY + 22}" style="fill:#8691A1;font-size:10px">${inWin.length} 次合入</text>`;
+    // 流曲线：从分叉点下沉到泳道，再回升到合入点
+    for (const s of shown) {
+      const x1 = Math.max(padL, X(s.forkTs)), x2 = X(s.at), y = masterY + (s.lane + 1) * laneH;
+      const sel = S.sel === s.h;
+      const col = sel ? '#4176E6' : 'rgba(65,118,230,0.4)';
+      const mid = (x1 + x2) / 2;
+      g += `<path d="M ${x1} ${masterY} C ${x1} ${y}, ${x1} ${y}, ${mid} ${y} C ${x2} ${y}, ${x2} ${y}, ${x2} ${masterY}" fill="none" stroke="${col}" stroke-width="${sel ? 2.5 : 1.4}"/>`;
+      if (s.forkTs >= t0) g += `<circle cx="${x1}" cy="${masterY}" r="${sel ? 3.5 : 2.4}" fill="#fff" stroke="#4176E6" stroke-width="1.4"/>`;
+    }
+    // 合入节点（可点击，最上层）
+    for (const s of shown) {
+      const x2 = X(s.at);
+      g += `<g class="gg-tip${S.sel === s.h ? ' sel' : ''}" data-sha="${s.h}">
+        <circle cx="${x2}" cy="${masterY}" r="${S.sel === s.h ? 6 : 4}" fill="${S.sel === s.h ? '#4176E6' : '#fff'}" stroke="#4176E6" stroke-width="2"/>
+        <title>${esc(s.br)} · ${esc(s.owner)} · ${fmtDate(s.at)} 合入 · ${s.n} 提交</title>
+      </g>`;
+    }
+    if (sorted.length > shown.length) {
+      g += `<text x="${padL}" y="${H - 30}" style="fill:#8691A1">该时段过密，图上仅显示前 ${maxLanes} 条泳道，完整列表见下方</text>`;
+    }
+    $('graph').innerHTML = `<svg class="gitgraph" viewBox="0 0 ${W} ${H}" style="width:${W}px;height:${H}px">${g}</svg>`;
+    $('graph').querySelectorAll('.gg-tip').forEach((el) => {
+      el.addEventListener('click', () => selectStream(el.dataset.sha));
+    });
+  }
+
+  function selectStream(sha) {
+    S.sel = sha;
+    renderGraph();
+    renderList();
+    const row = document.querySelector(`.stream-row[data-sha="${sha}"]`);
+    if (row) {
+      row.classList.add('open');
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  // ---------- 流列表 ----------
+  function renderList() {
+    const { t0, inWin } = windowStreams();
+    const rows = inWin.slice().sort((a, b) => b.at - a.at).slice(0, 300);
+    $('list-sub').textContent = `${inWin.length} 条分支流（显示最新 ${rows.length} 条）`;
+    const list = $('stream-list');
+    list.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    for (const s of rows) {
+      const sum = S.sums.streams[s.h];
+      const row = document.createElement('div');
+      row.className = 'stream-row' + (S.sel === s.h ? ' sel' : '');
+      row.dataset.sha = s.h;
+      row.innerHTML = `
+        <div class="stream-head">
+          <span class="br">${esc(s.br)}</span>
+          ${s.n ? `<span class="chip">${s.n} 提交</span>` : ''}
+          ${s.st[0] ? `<span class="chip">${s.st[0]} 文件</span>` : ''}
+          ${sum ? '' : '<span class="chip blue">直推合并</span>'}
+          <span class="meta">${esc(s.owner)} · ${fmtDate(s.at)} 合入</span>
+        </div>
+        ${sum ? `<div class="stream-summary">${esc(sum.s)}</div>` : `<div class="stream-summary">${esc(s.subj)}</div>`}
+        <div class="stream-detail"></div>`;
+      row.addEventListener('click', () => {
+        row.classList.toggle('open');
+        if (row.classList.contains('open') && !row.dataset.loaded) {
+          row.dataset.loaded = '1';
+          const d = row.querySelector('.stream-detail');
+          const sum2 = S.sums.streams[s.h];
+          d.innerHTML = `
+            ${sum2 ? `<div class="commit-desc">${esc(sum2.d)}</div>` : ''}
+            <div class="commit-desc">分支 <b>${esc(s.br)}</b> · 主力 ${esc(s.owner)} · 成员 ${esc(s.members.map(([n, c]) => `${n}(${c})`).join('、'))}<br/>
+            分叉于 ${fmtDate(s.forkTs)} · 合入于 ${fmtDate(s.at)} · 改动 ${s.st[0]} 文件 +${s.st[1]} −${s.st[2]} · 子系统 ${esc(s.subs.join(' / ') || '—')}</div>
+            <div class="commit-files">${esc((s.subjects || []).slice(0, 10).join('  ·  '))}</div>
+            <div class="commit-actions">
+              <a href="${githubCommit(s.h)}" target="_blank" rel="noopener">合入提交 ↗</a>
+              <a href="${B}tree/?sha=${s.h.slice(0, 8)}">看合入时刻的代码树 →</a>
+              <a href="${B}commits/?author=${encodeURIComponent(s.owner)}">${esc(s.owner)} 的提交 →</a>
+            </div>`;
+        }
+      });
+      frag.appendChild(row);
+    }
+    if (!rows.length) list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ink-3)">该时段没有分支合入。</div>';
+    else list.appendChild(frag);
+  }
+
+  // ---------- 成员画像 ----------
+  function renderAuthors() {
+    const grid = $('authors');
+    grid.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    for (const a of S.work.authors.slice(0, 24)) {
+      const p = S.sums.authors[a.name];
+      const card = document.createElement('div');
+      card.className = 'card author-card';
+      card.innerHTML = `
+        <div class="avatar" style="background:${avatarColor(a.name)}">${esc(a.name.slice(0, 1).toUpperCase())}</div>
+        <div style="flex:1;min-width:0">
+          <h3>${esc(a.name)}</h3>
+          <div class="nums">${a.commits} 提交 · master 直推 ${a.direct} · worktree 分支 ${a.streamCommits} · 主导工作流 ${a.streamCount} 条</div>
+          ${p ? `<div class="profile"><b style="color:var(--ink)">${esc(p.s)}</b><br/>${esc(p.d)}</div>` : ''}
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${a.subs.map((s) => `<span class="chip">${esc(s)}</span>`).join('')}</div>
+          <div class="commit-actions"><a href="${B}commits/?author=${encodeURIComponent(a.name)}">查看全部提交 →</a></div>
+        </div>`;
+      frag.appendChild(card);
+    }
+    grid.appendChild(frag);
+  }
+
+  // ---------- 交互 ----------
+  function renderRange() {
+    const el = $('range');
+    el.innerHTML = RANGES.map(([d, label]) => `<button data-d="${d}" class="${S.rangeDays === d ? 'on' : ''}">${label}</button>`).join('');
+    el.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      S.rangeDays = +b.dataset.d;
+      S.sel = null;
+      renderRange(); renderGraph(); renderList();
+    }));
+  }
+
+  $('tab-graph').addEventListener('click', () => {
+    S.tab = 'graph';
+    $('tab-graph').classList.add('on'); $('tab-authors').classList.remove('on');
+    $('view-graph').style.display = ''; $('view-authors').style.display = 'none';
+  });
+  $('tab-authors').addEventListener('click', () => {
+    S.tab = 'authors';
+    $('tab-authors').classList.add('on'); $('tab-graph').classList.remove('on');
+    $('view-authors').style.display = ''; $('view-graph').style.display = 'none';
+  });
+
+  (async () => {
+    S.work = await fetchJSON('work.json.gz');
+    S.sums = await fetchJSON('work-sum.json.gz').catch(() => ({ streams: {}, authors: {} }));
+    renderRange();
+    renderGraph();
+    renderList();
+    renderAuthors();
+  })();
+</script>

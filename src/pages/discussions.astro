@@ -17,7 +17,7 @@ const fmt = (iso) => iso.slice(0, 10);
 <Base active="/discussions/" title="讨论动态 · dsh-study">
   <div class="page-hero">
     <div class="wrap">
-      <h1>讨论动态 <span class="grad-text">Community Pulse</span></h1>
+      <h1>讨论动态 <span class="accent">Community Pulse</span></h1>
       <p>dsh 未开放 Issues/PR，GitHub Discussions（{github.repo.discussionsTotal.toLocaleString()} 条）就是唯一的社区脉搏。以下按最近更新排列，构建时快照。</p>
     </div>
   </div>
@@ -26,12 +26,12 @@ const fmt = (iso) => iso.slice(0, 10);
       {d.map((x) => (
         <a class="note-row" href={x.url} target="_blank" rel="noopener" style="text-decoration:none">
           <span class="date">#{x.n}</span>
-          <span class="t" style="color:var(--ds-ink)">{x.title}</span>
+          <span class="t" style="color:var(--ink)">{x.title}</span>
           <span class={CAT_COLOR[x.cat] ?? 'chip'}>{x.cat}</span>
           <span class="date">💬 {x.comments} · 👍 {x.votes} · {fmt(x.at)}</span>
         </a>
       ))}
     </div>
-    <p style="color:var(--ds-ink-3);font-size:13px;margin-top:14px">显示最近 {d.length} 条 · <a href="https://github.com/deepseek-ai/deepseek-harness/discussions" target="_blank" rel="noopener">在 GitHub 查看全部 ↗</a></p>
+    <p style="color:var(--ink-3);font-size:13px;margin-top:14px">显示最近 {d.length} 条 · <a href="https://github.com/deepseek-ai/deepseek-harness/discussions" target="_blank" rel="noopener">在 GitHub 查看全部 ↗</a></p>
   </div>
 </Base>

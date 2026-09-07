@@ -4,7 +4,7 @@ import Base from '../layouts/Base.astro';
 <Base active="/stats/" title="统计 · dsh-study">
   <div class="page-hero">
     <div class="wrap">
-      <h1>统计 <span class="grad-text">Charts</span></h1>
+      <h1>统计 <span class="accent">Charts</span></h1>
       <p>从 git 历史直接计算：提交活跃度、贡献者、模块分布。</p>
     </div>
   </div>
@@ -12,7 +12,7 @@ import Base from '../layouts/Base.astro';
     <div class="stat-grid" id="totals" style="margin-bottom:40px"></div>
     <h2 class="section-title">提交活跃度</h2>
     <p class="section-sub">全历史按天热力图</p>
-    <div class="card" style="overflow-x:auto;margin-bottom:40px"><div class="heatmap" id="heatmap" style="padding:16px"></div><div id="heat-legend" style="padding:0 16px 14px;color:var(--ds-ink-3);font-size:12.5px"></div></div>
+    <div class="card" style="overflow-x:auto;margin-bottom:40px"><div class="heatmap" id="heatmap" style="padding:16px"></div><div id="heat-legend" style="padding:0 16px 14px;color:var(--ink-3);font-size:12.5px"></div></div>
     <h2 class="section-title">模块变更分布</h2>
     <p class="section-sub">触及该模块的提交数（一个提交可触及多个模块）</p>
     <div class="card bars" id="modules" style="margin-bottom:40px"></div>
@@ -28,7 +28,7 @@ import Base from '../layouts/Base.astro';
   (async () => {
     const s = await fetchJSON('stats.json.gz');
     document.getElementById('totals').innerHTML = `
-      <div class="card stat-card"><div class="num grad-text">${fmtNum(s.totalCommits)}</div><div class="lbl">提交</div></div>
+      <div class="card stat-card"><div class="num accent">${fmtNum(s.totalCommits)}</div><div class="lbl">提交</div></div>
       <div class="card stat-card"><div class="num">${fmtNum(s.addTotal)}</div><div class="lbl">新增行数</div></div>
       <div class="card stat-card"><div class="num">${fmtNum(s.delTotal)}</div><div class="lbl">删除行数</div></div>
       <div class="card stat-card"><div class="num">${s.authorCount}</div><div class="lbl">贡献者</div></div>

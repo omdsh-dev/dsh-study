@@ -4,7 +4,7 @@ import Base from '../layouts/Base.astro';
 <Base active="/commits/" title="提交流 · dsh-study">
   <div class="page-hero">
     <div class="wrap">
-      <h1>提交流 <span class="grad-text">Commit Feed</span></h1>
+      <h1>提交流 <span class="accent">Commit Feed</span></h1>
       <p>master 全量提交，新→旧。每条附 AI 生成的中文省流；点开看 diff。重要性 ≥4/5 的提交带高亮。</p>
     </div>
   </div>
@@ -32,7 +32,7 @@ import Base from '../layouts/Base.astro';
       <span class="feed-count" id="count"></span>
     </div>
     <div class="card" style="padding:0" id="feed">
-      <div style="padding:32px;text-align:center;color:var(--ds-ink-3)">加载中…</div>
+      <div style="padding:32px;text-align:center;color:var(--ink-3)">加载中…</div>
     </div>
     <div class="feed-pager">
       <button class="btn ghost sm" id="prev">← 上一页</button>
@@ -177,7 +177,7 @@ import Base from '../layouts/Base.astro';
       el.classList.toggle('open');
       if (loaded || !el.classList.contains('open')) return;
       loaded = true;
-      detail.innerHTML = '<div style="color:var(--ds-ink-3);font-size:13px">加载 diff…</div>';
+      detail.innerHTML = '<div style="color:var(--ink-3);font-size:13px">加载 diff…</div>';
       try {
         const parts = [];
         for (const txt of [sum && sum.d, m.b]) {
@@ -224,14 +224,14 @@ import Base from '../layouts/Base.astro';
   }
 
   async function render() {
-    $feed.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ds-ink-3)">加载中…</div>';
+    $feed.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ink-3)">加载中…</div>';
     const n = await countTotal();
     const pages = Math.max(1, Math.ceil(n / PAGE));
     if (state.page >= pages) state.page = pages - 1;
     const items = await pageItems(state.page);
     $feed.innerHTML = '';
     if (!items.length) {
-      $feed.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ds-ink-3)">没有匹配的提交。</div>';
+      $feed.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ink-3)">没有匹配的提交。</div>';
     } else {
       const frag = document.createDocumentFragment();
       for (const it of items) frag.appendChild(rowEl(it));
@@ -254,6 +254,14 @@ import Base from '../layouts/Base.astro';
   (async () => {
     state.overview = await fetchJSON('overview.json.gz');
     await loadSearchIdx();
+    const authorParam = new URLSearchParams(location.search).get('author');
+    if (authorParam && state.searchIdx) {
+      const idx = state.searchIdx.authors.indexOf(authorParam);
+      if (idx >= 0) {
+        state.author = String(idx);
+        document.getElementById('author').value = String(idx);
+      }
+    }
     await render();
     const sha = new URLSearchParams(location.search).get('sha');
     if (sha) {

@@ -21,10 +21,12 @@ if (fs.existsSync(path.join(UPSTREAM, 'config'))) {
 // 2) 数据管线（extract 全量重跑，幂等；摘要只补缺分片）
 run('node', ['scripts/extract.mjs']);
 run('node', ['scripts/extract-notes.mjs']);
+run('node', ['scripts/extract-work.mjs']);
 run('node', ['scripts/build-search-index.mjs']);
 if (!process.env.SKIP_GITHUB_META) run('node', ['scripts/github-meta.mjs']);
 if (process.env.DEEPSEEK_API_KEY) {
   run('node', ['scripts/summarize.mjs']);
+  run('node', ['scripts/summarize-work.mjs']);
 } else {
   console.warn('未设 DEEPSEEK_API_KEY，跳过摘要增量（仅更新元数据）');
 }

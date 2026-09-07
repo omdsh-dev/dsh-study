@@ -1,11 +1,11 @@
 ---
 import '../styles/global.css';
-const { title = 'dsh-study · DeepSeek Harness 演进史', desc = '跟踪 deepseek-ai/deepseek-harness 开发过程的中文导览站：提交流省流、历史 worktree、设计笔记与文档导读', active = '' } = Astro.props;
+const { title = 'dsh-study · DeepSeek Harness 演进史', desc = '跟踪 deepseek-ai/deepseek-harness 开发过程的中文导览站：图形化 git 工作流、提交流省流、设计笔记与文档导读', active = '' } = Astro.props;
 const B = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const nav = [
   ['/', '首页'],
   ['/commits/', '提交流'],
-  ['/tree/', 'Worktree'],
+  ['/work/', '工作流'],
   ['/notes/', '设计笔记'],
   ['/docs/', '文档导读'],
   ['/discussions/', '讨论'],
@@ -20,19 +20,30 @@ const nav = [
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={desc} />
     <title>{title}</title>
-    <link rel="icon" href={`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#4d6bfe"/><text x="16" y="22" font-size="15" font-weight="800" text-anchor="middle" fill="#fff" font-family="sans-serif">dsh</text></svg>')}`} />
+    <link rel="icon" href={`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="#4176E6"/><text x="16" y="22" font-size="14" font-weight="700" text-anchor="middle" fill="#fff" font-family="sans-serif">dsh</text></svg>')}`} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
   </head>
   <body>
     <header class="site-header">
-      <div class="wrap">
-        <a class="logo" href={B}><span class="mark">dsh</span>dsh-study<span style="font-size:11px;color:var(--ds-ink-3);font-weight:500">演进史</span></a>
-        <nav class="site-nav">
+      <div class="bar">
+        <a class="logo" href={B}><span class="mark">dsh</span>dsh-study<span class="sub">演进史</span></a>
+        <button class="nav-burger" id="nav-burger" aria-label="菜单">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 4.5h14M2 9h14M2 13.5h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <nav class="site-nav" id="site-nav">
           {nav.map(([href, label]) => (
             <a href={B + href.slice(1)} class={active === href ? 'active' : ''}>{label}</a>
           ))}
         </nav>
       </div>
     </header>
+    <script>
+      document.getElementById('nav-burger')?.addEventListener('click', () => {
+        document.getElementById('site-nav')?.classList.toggle('open');
+      });
+    </script>
     <slot />
     <footer class="site-footer">
       <div class="wrap">
