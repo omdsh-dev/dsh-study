@@ -1,5 +1,5 @@
 // 客户端数据工具：.json.gz 透明解压 + 格式化
-import { ungzip } from 'pako';
+import pako from 'pako';
 
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 export const B = BASE;
@@ -11,7 +11,13 @@ export async function fetchJSON(file) {
   const buf = new Uint8Array(await res.arrayBuffer());
   // 兼容两种服务器行为：有的对 .gz 自动 Content-Encoding 解压（魔数已不是 1f8b）
   const isGz = buf[0] === 0x1f && buf[1] === 0x8b;
-  const text = isGz ? ungzip(buf, { to: 'string' }) : new TextDecoder().decode(buf);
+  let text;
+  if (isGz) {
+    const out = pako.ungzip(buf, { to: 'string' });
+    text = typeof out === 'string' ? out : new TextDecoder().decode(out);
+  } else {
+    text = new TextDecoder().decode(buf);
+  }
   return JSON.parse(text);
 }
 
