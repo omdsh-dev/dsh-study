@@ -4,15 +4,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { PUBLIC_DATA } from './config.mjs';
+import { readShard } from './shard-io.mjs';
 
 const COMMITS_DIR = path.join(PUBLIC_DATA, 'commits');
-const metaFiles = fs.readdirSync(COMMITS_DIR).filter((f) => /^meta-\d+\.json(\.gz)?$/.test(f)).sort();
+const metaFiles = [...new Set(
+  fs.readdirSync(COMMITS_DIR)
+    .filter((f) => /^meta-\d+\.json(\.gz)?$/.test(f))
+    .map((f) => f.replace(/\.gz$/, '')),
+)].sort();
 const authors = [];
 const authorIdx = new Map();
 const rows = [];
 for (const f of metaFiles) {
-  const p = path.join(COMMITS_DIR, f);
-  const metas = JSON.parse(zlib.gunzipSync(fs.readFileSync(p + (fs.existsSync(p) ? '' : '.gz'))).toString());
+  const metas = readShard(path.join(COMMITS_DIR, f));
   for (const m of metas) {
     let ai = authorIdx.get(m.an);
     if (ai === undefined) { ai = authors.length; authors.push(m.an); authorIdx.set(m.an, ai); }
