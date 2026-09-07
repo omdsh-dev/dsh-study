@@ -1,0 +1,123 @@
+---
+import Base from '../layouts/Base.astro';
+import { readShard, dataFile } from '../lib/server-data.js';
+
+const B = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const overview = readShard(dataFile('overview.json'));
+const github = readShard(dataFile('github.json'));
+const stats = readShard(dataFile('stats.json'));
+const notes = readShard(dataFile('notes.json'));
+
+// 最新重要提交（importance>=4，取最新 6 条）
+const lastMeta = readShard(dataFile('commits', `meta-${String(overview.shards.meta - 1).padStart(5, '0')}.json`));
+let recent = [];
+try {
+  const lastSum = readShard(dataFile('commits', `sum-${String(overview.shards.meta - 1).padStart(5, '0')}.json`));
+  recent = lastMeta
+    .filter((m) => lastSum[m.h] && lastSum[m.h].i >= 4)
+    .slice(-6).reverse()
+    .map((m) => ({ ...m, sum: lastSum[m.h] }));
+} catch { /* 摘要尚未生成完 */ }
+
+const fmtDate = (ts) => new Date(ts * 1000).toISOString().slice(0, 10);
+const fmtNum = (n) => (n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n));
+const days = Math.round((overview.headTs - overview.firstTs) / 86400);
+---
+<Base>
+  <section class="hero">
+    <div class="wrap" style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:40px;align-items:center">
+      <div>
+        <span class="chip blue">非官方 · 社区导览站</span>
+        <h1>DeepSeek Harness<br /><span class="grad-text">开发演进史</span></h1>
+        <p class="lede">
+          dsh 是 DeepSeek 开源的插件化 AI Agent 框架（Everything is a Plugin）。
+          本站逐条跟踪它的 {overview.totalCommits.toLocaleString()} 次提交：每条 diff 都有一句中文「省流」，
+          每个时刻的代码树都可以翻回去看，{notes.total} 篇设计笔记和重要文档配有中文导读。
+        </p>
+        <div class="cta">
+          <a class="btn" href={`${B}commits/`}>浏览提交流</a>
+          <a class="btn ghost" href={`${B}docs/`}>从文档导读入门</a>
+        </div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="background:var(--dark-bg);padding:18px 20px;font-family:var(--ds-mono);font-size:12px;line-height:1.9">
+          <div style="color:#6b7699">$ npx @deepseek-ai/dsh web</div>
+          <div style="color:#7ee2a8">✓ harness ready at 127.0.0.1:3080</div>
+          <div style="color:#9fb2ff">everything is a plugin</div>
+          <div style="color:#6b7699">{overview.totalCommits.toLocaleString()} commits · {notes.total} agent notes · {days} days</div>
+        </div>
+        <div style="padding:16px 20px;display:flex;gap:18px;justify-content:space-between">
+          <div><div class="num grad-text" style="font-weight:800;font-size:20px">{fmtNum(github.repo.stars)}</div><div style="font-size:12px;color:var(--ds-ink-3)">Stars</div></div>
+          <div><div style="font-weight:800;font-size:20px">{fmtNum(github.repo.forks)}</div><div style="font-size:12px;color:var(--ds-ink-3)">Forks</div></div>
+          <div><div style="font-weight:800;font-size:20px">{stats.authorCount}</div><div style="font-size:12px;color:var(--ds-ink-3)">贡献者</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="stat-grid">
+        <div class="card stat-card"><div class="num grad-text">{fmtNum(github.repo.stars)}</div><div class="lbl">GitHub Stars</div></div>
+        <div class="card stat-card"><div class="num">{overview.totalCommits.toLocaleString()}</div><div class="lbl">提交（master）</div></div>
+        <div class="card stat-card"><div class="num">{stats.authorCount}</div><div class="lbl">贡献者</div></div>
+        <div class="card stat-card"><div class="num">{fmtNum(github.repo.forks)}</div><div class="lbl">Forks</div></div>
+        <div class="card stat-card"><div class="num">{fmtNum(github.repo.discussionsTotal)}</div><div class="lbl">社区讨论</div></div>
+        <div class="card stat-card"><div class="num">{notes.total}</div><div class="lbl">设计笔记</div></div>
+      </div>
+      <p style="color:var(--ds-ink-3);font-size:13px;margin:14px 2px 0">
+        首次提交 {fmtDate(overview.firstTs)} · 最新提交 {fmtDate(overview.headTs)} · {days} 天 · 数据快照 {new Date(github.generatedAt).toISOString().slice(0, 10)}
+      </p>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:8px">
+    <div class="wrap">
+      <h2 class="section-title">最近的重要变更</h2>
+      <p class="section-sub">重要性 ≥ 4/5 的提交（AI 评级），完整列表见<a href={`${B}commits/`}>提交流</a></p>
+      <div class="card" style="padding:0">
+        {recent.length === 0 && <div style="padding:24px;color:var(--ds-ink-3)">摘要回填进行中，稍后可见。</div>}
+        {recent.map((m) => (
+          <div class="commit-item">
+            <div class="commit-head">
+              <span class="sha">{m.h.slice(0, 8)}</span>
+              <span class="subj">{m.s}</span>
+              <span class="chip" style="margin:0">{m.sum.c}</span>
+              <span class="meta">{fmtDate(m.t)}</span>
+            </div>
+            <p class="commit-summary">{m.sum.s}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:8px">
+    <div class="wrap">
+      <h2 class="section-title">怎么看这个项目</h2>
+      <p class="section-sub">按你的目的选一条路径</p>
+      <div class="doc-grid">
+        <a class="card doc-card" href={`${B}docs/`}>
+          <span class="chip blue" style="margin-bottom:10px"> newcomers</span>
+          <h3>我想搞懂 dsh 是什么</h3>
+          <p>从 README、架构总览、Agent 生命周期三篇中文导读开始，20 分钟建立全景。</p>
+        </a>
+        <a class="card doc-card" href={`${B}timeline/`}>
+          <span class="chip blue" style="margin-bottom:10px">history</span>
+          <h3>我想看它怎么长出来的</h3>
+          <p>里程碑时间线：从空仓库到插件体系成型的关键节点、版本发布与架构转折。</p>
+        </a>
+        <a class="card doc-card" href={`${B}notes/`}>
+          <span class="chip blue" style="margin-bottom:10px">decisions</span>
+          <h3>我想抄它的工程实践</h3>
+          <p>{notes.total} 篇 Agent Notes 设计决策（含被拒绝的），看 DeepSeek 如何管理一个 AI 仓的演进。</p>
+        </a>
+        <a class="card doc-card" href={`${B}tree/`}>
+          <span class="chip blue" style="margin-bottom:10px">source</span>
+          <h3>我想读它的源码</h3>
+          <p>Worktree 浏览器：任意提交时刻的目录树 + 文件原文，配合提交流的 diff 食用。</p>
+        </a>
+      </div>
+    </div>
+  </section>
+</Base>

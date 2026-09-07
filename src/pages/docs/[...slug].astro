@@ -1,0 +1,33 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const docs = await getCollection('docs');
+  return docs.map((d) => ({
+    params: { slug: d.id.replace(/\.md$/, '') },
+    props: { doc: d },
+  }));
+}
+const { doc } = Astro.props;
+const { Content } = await render(doc);
+---
+<Base active="/docs/" title={`${doc.data.title} · dsh-study`}>
+  <div class="page-hero">
+    <div class="wrap">
+      <h1>{doc.data.title}</h1>
+      <p>{doc.data.summary}</p>
+    </div>
+  </div>
+  <div class="section wrap">
+    <div class="doc-meta">
+      <span class="chip blue">{doc.data.category}</span>
+      <span>导读对象：<span class="mono">{doc.data.doc}</span></span>
+      <a href={doc.data.upstream} target="_blank" rel="noopener">阅读原文 ↗</a>
+      <a href="/dsh-study/docs/">← 全部导读</a>
+    </div>
+    <div class="prose">
+      <Content />
+    </div>
+  </div>
+</Base>

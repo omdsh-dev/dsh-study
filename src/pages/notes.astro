@@ -1,0 +1,140 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base active="/notes/" title="设计笔记 Agent Notes · dsh-study">
+  <div class="page-hero">
+    <div class="wrap">
+      <h1>设计笔记 <span class="grad-text">Agent Notes</span></h1>
+      <p>dsh 的独特机制：每个非平凡变更必须附一篇决策笔记（为什么、放弃了什么），生命周期为 proposed → implemented / rejected → archived。以下笔记支持中英双语阅读。</p>
+    </div>
+  </div>
+  <div class="section wrap" style="max-width:920px">
+    <div class="note-filters" id="filters">
+      <button data-lc="" class="on">全部</button>
+      <button data-lc="implemented">implemented</button>
+      <button data-lc="proposed">proposed</button>
+      <button data-lc="rejected">rejected</button>
+      <button data-lc="archived">archived</button>
+      <select id="cls" style="font:inherit;font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid var(--ds-border)">
+        <option value="">全部类别</option>
+        <option value="architecture">architecture</option>
+        <option value="feature">feature</option>
+        <option value="bug-fix">bug-fix</option>
+        <option value="simplification">simplification</option>
+        <option value="process">process</option>
+        <option value="testing">testing</option>
+      </select>
+      <input type="search" id="q" placeholder="搜索笔记标题…" style="font:inherit;font-size:13px;padding:6px 14px;border-radius:999px;border:1px solid var(--ds-border);min-width:200px" />
+      <span class="feed-count" id="count"></span>
+    </div>
+    <div class="card" style="padding:0" id="list">
+      <div style="padding:32px;text-align:center;color:var(--ds-ink-3)">加载中…</div>
+    </div>
+  </div>
+
+  <div class="note-reader" id="reader">
+    <div class="mask" id="mask"></div>
+    <div class="panel">
+      <button class="close" id="close">✕</button>
+      <div id="note-body" class="prose"><p>加载中…</p></div>
+      <hr style="margin:28px 0 12px;border:none;border-top:1px solid var(--ds-border)" />
+      <div id="note-links" style="font-size:13px;color:var(--ds-ink-3)"></div>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { fetchJSON, rawAt } from '../lib/data.js';
+  import { renderMarkdown } from '../lib/md.js';
+
+  const S = { notes: null, headSha: '', lc: '', cls: '', q: '' };
+  const $list = document.getElementById('list');
+  const $count = document.getElementById('count');
+  const $reader = document.getElementById('reader');
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const LC_ZH = { implemented: '已实现', proposed: '提案中', rejected: '已否决', archived: '已归档' };
+
+  function render() {
+    const needle = S.q.toLowerCase();
+    const items = S.notes.filter((n) =>
+      (!S.lc || n.lifecycle === S.lc) &&
+      (!S.cls || n.cls === S.cls) &&
+      (!needle || (n.tZh || n.tEn).toLowerCase().includes(needle) || n.tEn.toLowerCase().includes(needle) || n.slug.includes(needle)));
+    $count.textContent = `${items.length} 篇`;
+    $list.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    for (const n of items.slice(0, 400)) {
+      const row = document.createElement('div');
+      row.className = 'note-row';
+      row.innerHTML = `
+        <span class="date">${n.date}</span>
+        <span class="t">${esc(n.tZh || n.tEn)}</span>
+        <span class="chip">${esc(n.cls)}</span>
+        <span class="lc-badge lc-${n.lifecycle}" title="${LC_ZH[n.lifecycle]}">${n.lifecycle}</span>`;
+      row.addEventListener('click', () => openNote(n));
+      frag.appendChild(row);
+    }
+    if (items.length > 400) {
+      const tip = document.createElement('div');
+      tip.style.cssText = 'padding:14px;text-align:center;color:var(--ds-ink-3);font-size:13px';
+      tip.textContent = `仅显示最新 400 篇，共 ${items.length} 篇匹配 —— 用筛选器缩小范围。`;
+      frag.appendChild(tip);
+    }
+    if (!items.length) $list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ds-ink-3)">没有匹配的笔记。</div>';
+    else $list.appendChild(frag);
+  }
+
+  const notePath = (n, zh) => `.agents/notes/${n.lifecycle}/${n.cls}/${n.date}-${n.slug}${zh ? '.zh' : ''}.md`;
+
+  async function openNote(n) {
+    $reader.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    const body = document.getElementById('note-body');
+    const links = document.getElementById('note-links');
+    body.innerHTML = '<div style="padding:60px 0;text-align:center;color:var(--ds-ink-3);font-size:15px"><span class="chip blue">正在从 GitHub 加载笔记原文…</span></div>';
+    links.innerHTML = '';
+    // 中文优先，失败回退英文
+    for (const zh of [!!n.tZh, false]) {
+      if (zh && !n.tZh) continue;
+      try {
+        const res = await fetch(rawAt(S.headSha, notePath(n, zh)));
+        if (!res.ok) throw new Error(res.status);
+        const md = await res.text();
+        body.innerHTML = renderMarkdown(md.replace(/^#[^\n]*\n/, '').replace(/^Status:.*\n/m, ''));
+        links.innerHTML = `
+          ${n.tZh && n.tEn ? `本篇打开的是${zh ? '中文' : '英文'}版 · ` : ''}
+          <a href="${rawAt(S.headSha, notePath(n, false))}" target="_blank" rel="noopener">英文原文 ↗</a> ·
+          <a href="${rawAt(S.headSha, notePath(n, true))}" target="_blank" rel="noopener">中文原文 ↗</a> ·
+          <a href="https://github.com/deepseek-ai/deepseek-harness/tree/master/.agents/notes/${n.lifecycle}/${n.cls}" target="_blank" rel="noopener">同类笔记目录 ↗</a>`;
+        return;
+      } catch { /* 尝试另一种语言 */ }
+    }
+    body.innerHTML = '<p>笔记内容加载失败（可能已被归档或删除）。</p>';
+  }
+
+  const closeReader = () => { $reader.classList.remove('open'); document.body.style.overflow = ''; };
+  document.getElementById('close').addEventListener('click', closeReader);
+  document.getElementById('mask').addEventListener('click', closeReader);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeReader(); });
+
+  document.getElementById('filters').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-lc]');
+    if (!b) return;
+    document.querySelectorAll('#filters button[data-lc]').forEach((x) => x.classList.toggle('on', x === b));
+    S.lc = b.dataset.lc;
+    render();
+  });
+  document.getElementById('cls').addEventListener('change', (e) => { S.cls = e.target.value; render(); });
+  let t;
+  document.getElementById('q').addEventListener('input', (e) => {
+    clearTimeout(t);
+    t = setTimeout(() => { S.q = e.target.value.trim(); render(); }, 250);
+  });
+
+  (async () => {
+    const data = await fetchJSON('notes.json.gz');
+    S.notes = data.notes;
+    S.headSha = data.headSha;
+    render();
+  })();
+</script>

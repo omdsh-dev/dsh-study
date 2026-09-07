@@ -1,0 +1,75 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base active="/stats/" title="统计 · dsh-study">
+  <div class="page-hero">
+    <div class="wrap">
+      <h1>统计 <span class="grad-text">Charts</span></h1>
+      <p>从 git 历史直接计算：提交活跃度、贡献者、模块分布。</p>
+    </div>
+  </div>
+  <div class="section wrap">
+    <div class="stat-grid" id="totals" style="margin-bottom:40px"></div>
+    <h2 class="section-title">提交活跃度</h2>
+    <p class="section-sub">全历史按天热力图</p>
+    <div class="card" style="overflow-x:auto;margin-bottom:40px"><div class="heatmap" id="heatmap" style="padding:16px"></div><div id="heat-legend" style="padding:0 16px 14px;color:var(--ds-ink-3);font-size:12.5px"></div></div>
+    <h2 class="section-title">模块变更分布</h2>
+    <p class="section-sub">触及该模块的提交数（一个提交可触及多个模块）</p>
+    <div class="card bars" id="modules" style="margin-bottom:40px"></div>
+    <h2 class="section-title">贡献者排行</h2>
+    <p class="section-sub">按提交数（前 25）</p>
+    <div class="card bars" id="authors"></div>
+  </div>
+</Base>
+
+<script>
+  import { fetchJSON, fmtDate, fmtNum } from '../lib/data.js';
+
+  (async () => {
+    const s = await fetchJSON('stats.json.gz');
+    document.getElementById('totals').innerHTML = `
+      <div class="card stat-card"><div class="num grad-text">${fmtNum(s.totalCommits)}</div><div class="lbl">提交</div></div>
+      <div class="card stat-card"><div class="num">${fmtNum(s.addTotal)}</div><div class="lbl">新增行数</div></div>
+      <div class="card stat-card"><div class="num">${fmtNum(s.delTotal)}</div><div class="lbl">删除行数</div></div>
+      <div class="card stat-card"><div class="num">${s.authorCount}</div><div class="lbl">贡献者</div></div>
+      <div class="card stat-card"><div class="num">${fmtDate(s.first)}</div><div class="lbl">首次提交</div></div>`;
+
+    // 热力图：按周列组织
+    const heat = document.getElementById('heatmap');
+    const counts = s.dailyCounts;
+    const start = s.dailyStart; // ts
+    const startDow = new Date(start * 1000).getUTCDay();
+    const max = Math.max(...counts, 1);
+    const cell = (v) => {
+      const d = document.createElement('div');
+      d.className = 'cell';
+      if (v > 0) {
+        const t = Math.min(1, Math.log(v + 1) / Math.log(max + 1));
+        d.style.background = t < 0.25 ? '#c7d2ff' : t < 0.5 ? '#8ea3ff' : t < 0.75 ? '#5f7bff' : '#3d55d8';
+      }
+      return d;
+    };
+    // 第一周补位
+    for (let i = 0; i < startDow; i++) heat.appendChild(Object.assign(document.createElement('div'), { className: 'cell', style: 'background:transparent' }));
+    for (let i = 0; i < counts.length; i++) {
+      const c = cell(counts[i]);
+      const ts = start + i * 86400;
+      c.title = `${fmtDate(ts)} · ${counts[i]} 次提交`;
+      heat.appendChild(c);
+    }
+    document.getElementById('heat-legend').textContent = `少 □□■ ■ 多 · 峰值 ${max} 次/天 · ${counts.length} 天`;
+
+    // 通用条形图
+    function bars(el, rows, fmt) {
+      const maxV = rows[0][1];
+      el.innerHTML = rows.map(([name, v]) => `
+        <div class="bar-row">
+          <span class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${(v / maxV * 100).toFixed(1)}%"></div></div>
+          <span class="bar-num">${fmt(v)}</span>
+        </div>`).join('');
+    }
+    bars(document.getElementById('modules'), s.modules.map((m) => [m.m, m.c]).slice(0, 12), fmtNum);
+    bars(document.getElementById('authors'), s.authors.slice(0, 25).map((a) => [a.name, a.c]), fmtNum);
+  })();
+</script>

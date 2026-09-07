@@ -1,0 +1,50 @@
+---
+import '../styles/global.css';
+const { title = 'dsh-study · DeepSeek Harness 演进史', desc = '跟踪 deepseek-ai/deepseek-harness 开发过程的中文导览站：提交流省流、历史 worktree、设计笔记与文档导读', active = '' } = Astro.props;
+const B = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const nav = [
+  ['/', '首页'],
+  ['/commits/', '提交流'],
+  ['/tree/', 'Worktree'],
+  ['/notes/', '设计笔记'],
+  ['/docs/', '文档导读'],
+  ['/discussions/', '讨论'],
+  ['/stats/', '统计'],
+  ['/timeline/', '里程碑'],
+];
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={desc} />
+    <title>{title}</title>
+    <link rel="icon" href={`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#4d6bfe"/><text x="16" y="22" font-size="15" font-weight="800" text-anchor="middle" fill="#fff" font-family="sans-serif">dsh</text></svg>')}`} />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="logo" href={B}><span class="mark">dsh</span>dsh-study<span style="font-size:11px;color:var(--ds-ink-3);font-weight:500">演进史</span></a>
+        <nav class="site-nav">
+          {nav.map(([href, label]) => (
+            <a href={B + href.slice(1)} class={active === href ? 'active' : ''}>{label}</a>
+          ))}
+        </nav>
+      </div>
+    </header>
+    <slot />
+    <footer class="site-footer">
+      <div class="wrap">
+        <div>
+          <strong>dsh-study</strong> · DeepSeek Harness（dsh）开发过程中文导览<br />
+          数据来自 <a href="https://github.com/deepseek-ai/deepseek-harness">deepseek-ai/deepseek-harness</a> 公开仓库，提交摘要由 DeepSeek AI 生成，可能存在错误。
+        </div>
+        <div>
+          非官方社区项目 · 与 DeepSeek 无隶属关系<br />
+          内容以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 提供 · 代码 MIT
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

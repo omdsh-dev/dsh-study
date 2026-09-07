@@ -1,0 +1,225 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base active="/tree/" title="Worktree 浏览器 · dsh-study">
+  <div class="page-hero">
+    <div class="wrap">
+      <h1>Worktree <span class="grad-text">任意时刻的代码树</span></h1>
+      <p>拖动时间轴翻到任意提交时刻，浏览当时存在的目录与文件；文件内容按需从 GitHub raw 加载。</p>
+    </div>
+  </div>
+  <div class="section wrap">
+    <div class="card">
+      <div class="commit-picker">
+        <button class="btn ghost sm" id="prev">←</button>
+        <input type="range" id="slider" min="0" value="0" step="1" />
+        <button class="btn ghost sm" id="next">→</button>
+        <button class="btn ghost sm" id="latest">最新</button>
+        <input type="search" id="sha" placeholder="sha 前 8 位…" style="width:150px;font-family:var(--ds-mono);font-size:13px;padding:8px 12px;border-radius:999px;border:1px solid var(--ds-border)" />
+      </div>
+      <div class="pos" id="posinfo">加载中…</div>
+    </div>
+    <div class="tree-layout" style="margin-top:18px">
+      <div class="card tree-panel" id="tree"><div style="padding:24px;color:var(--ds-ink-3)">加载树…</div></div>
+      <div class="file-view" id="view">
+        <div class="fv-head"><span>← 点左侧文件查看内容</span></div>
+        <pre style="color:var(--dark-ink-3)">选择任意文件浏览该提交时刻的原文。</pre>
+      </div>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { fetchJSON, shardN, rawAt, githubCommit, fmtDateTime } from '../lib/data.js';
+
+  const NOISE_PREFIX = ['snapshots/', 'vendor/', 'patches/'];
+  const NOISE_BASE = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'Cargo.lock', 'go.sum', 'poetry.lock'];
+  const isNoise = (p) => NOISE_BASE.includes(p.split('/').pop()) || NOISE_PREFIX.some((x) => p.startsWith(x));
+
+  const S = {
+    overview: null, shaIndex: null,
+    idx: 0, total: 0,
+    cpCache: new Map(), deltaCache: new Map(),
+    tree: null,          // Map path -> {a, size}
+    commit: null,        // 当前提交 meta
+    dir: '', changed: new Set(),
+    fileCache: new Map(),
+  };
+  const $tree = document.getElementById('tree');
+  const $view = document.getElementById('view');
+  const $slider = document.getElementById('slider');
+  const $pos = document.getElementById('posinfo');
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const getCp = async (c) => {
+    if (!S.cpCache.has(c)) S.cpCache.set(c, fetchJSON(`tree/cp-${shardN(c)}.json.gz`));
+    return S.cpCache.get(c);
+  };
+  const getDelta = async (si) => {
+    if (!S.deltaCache.has(si)) S.deltaCache.set(si, fetchJSON(`tree/delta-${shardN(si)}.json.gz`));
+    return S.deltaCache.get(si);
+  };
+
+  async function buildTree(idx) {
+    const c = Math.floor((idx + 1) / 500);
+    const cp = await getCp(c);
+    const map = new Map(cp.f.map(([p, a, mode, size]) => [p, { a, size }]));
+    const cpStart = c * 500;
+    for (let k = cpStart; k <= idx; k++) {
+      const si = Math.floor(k / 500);
+      const deltas = await getDelta(si);
+      for (const op of deltas[k % 500]) {
+        if (isNoise(op.p)) { if (op.s === 'R' || op.s === 'C') { if (!isNoise(op.np)) map.set(op.np, { a: op.a }); } continue; }
+        if (op.s === 'D') map.delete(op.p);
+        else if (op.s === 'R' || op.s === 'C') { map.delete(op.p); if (!isNoise(op.np)) map.set(op.np, { a: op.a }); }
+        else map.set(op.p, { a: op.a });
+      }
+    }
+    return map;
+  }
+
+  async function commitMeta(idx) {
+    const si = Math.floor(idx / 500);
+    const meta = await fetchJSON(`commits/meta-${shardN(si)}.json.gz`);
+    return meta[idx % 500];
+  }
+
+  async function goto(idx) {
+    idx = Math.max(0, Math.min(S.total - 1, idx));
+    S.idx = idx;
+    $slider.value = idx;
+    const [tree, commit] = await Promise.all([buildTree(idx), commitMeta(idx)]);
+    S.tree = tree;
+    S.commit = commit;
+    $pos.innerHTML = `<span class="mono" style="color:var(--ds-blue)">${commit.h.slice(0, 8)}</span> · ${esc(commit.s)} <span style="color:var(--ds-ink-3)">· ${esc(commit.an)} · ${fmtDateTime(commit.t)} · #${idx + 1}/${S.total}</span> · <a href="${githubCommit(commit.h)}" target="_blank" rel="noopener">GitHub ↗</a>`;
+    renderDir(S.dir);
+    renderPlaceholder();
+  }
+
+  function renderPlaceholder() {
+    $view.innerHTML = `<div class="fv-head"><span>${esc(S.commit.h.slice(0, 8))} 时刻的文件</span><span>#${S.idx + 1}</span></div><pre style="color:var(--dark-ink-3)">点左侧任意文件，浏览该提交时刻的原文（内容从 GitHub raw 拉取）。</pre>`;
+  }
+
+  function renderDir(dir) {
+    S.dir = dir;
+    const prefix = dir ? dir + '/' : '';
+    const dirs = new Set(), files = [];
+    for (const [p, info] of S.tree) {
+      if (!p.startsWith(prefix)) continue;
+      const rest = p.slice(prefix.length);
+      const slash = rest.indexOf('/');
+      if (slash === -1) files.push({ name: rest, p, info });
+      else dirs.add(rest.slice(0, slash));
+    }
+    // 面包屑
+    const crumbs = document.createElement('div');
+    crumbs.className = 'crumbs';
+    crumbs.style.padding = '6px 8px';
+    const mk = (label, d, isLast) => {
+      if (isLast) { const s = document.createElement('b'); s.textContent = label; crumbs.appendChild(s); return; }
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.addEventListener('click', () => renderDir(d));
+      crumbs.appendChild(b);
+    };
+    if (!dir) mk('dsh/', '', true);
+    else {
+      mk('dsh/', '', false);
+      const parts = dir.split('/');
+      let acc = '';
+      parts.forEach((part, i) => {
+        const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '/'; crumbs.appendChild(sep);
+        acc = acc ? acc + '/' + part : part;
+        mk(part, acc, i === parts.length - 1);
+      });
+    }
+    $tree.innerHTML = '';
+    $tree.appendChild(crumbs);
+    const list = document.createElement('div');
+    [...dirs].sort().forEach((d) => {
+      const row = document.createElement('button');
+      row.className = 'tree-row';
+      row.innerHTML = `<span class="ico">📁</span><span class="nm">${esc(d)}/</span>`;
+      row.addEventListener('click', () => renderDir(prefix + d));
+      list.appendChild(row);
+    });
+    files.sort((a, b) => a.name.localeCompare(b.name)).forEach(({ name, p, info }) => {
+      const row = document.createElement('button');
+      row.className = 'tree-row' + (S.changed.has(p) ? ' changed' : '');
+      row.title = p;
+      row.innerHTML = `<span class="ico">📄</span><span class="nm">${esc(name)}</span>${info.size >= 0 ? `<span style="color:var(--ds-ink-3);font-size:11px">${(info.size / 1024).toFixed(1)}k</span>` : ''}`;
+      row.addEventListener('click', () => openFile(p));
+      list.appendChild(row);
+    });
+    if (!dirs.size && !files.length) {
+      list.innerHTML = '<div style="padding:20px;color:var(--ds-ink-3);font-size:13px">（空目录或历史时刻该目录不存在）</div>';
+    }
+    $tree.appendChild(list);
+  }
+
+  async function openFile(p) {
+    $view.innerHTML = `<div class="fv-head"><span>${esc(p)}</span><span>加载中…</span></div><pre> </pre>`;
+    try {
+      let text = S.fileCache.get(S.commit.h + p);
+      if (text === undefined) {
+        const res = await fetch(rawAt(S.commit.h, p), { signal: AbortSignal.timeout(20000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        text = await res.text();
+        S.fileCache.set(S.commit.h + p, text);
+      }
+      const shown = text.length > 400 * 1024 ? text.slice(0, 400 * 1024) + '\n\n… （超长截断，完整内容见 GitHub）' : text;
+      $view.innerHTML = '';
+      const head = document.createElement('div');
+      head.className = 'fv-head';
+      head.innerHTML = `<span>${esc(p)}</span><a href="${githubCommit(S.commit.h)}" target="_blank" rel="noopener">${S.commit.h.slice(0, 8)} ↗</a>`;
+      const pre = document.createElement('pre');
+      pre.textContent = shown;
+      $view.append(head, pre);
+    } catch (e) {
+      $view.innerHTML = `<div class="fv-head"><span>${esc(p)}</span></div><pre style="color:#ffb1ab">加载失败（${esc(e.message)}）。该文件可能太大或是二进制。</pre>`;
+    }
+  }
+
+  (async () => {
+    S.overview = await fetchJSON('overview.json.gz');
+    S.total = S.overview.totalCommits;
+    S.shaIndex = await fetchJSON('tree/sha-index.json.gz');
+    $slider.max = String(S.total - 1);
+    $slider.value = String(S.total - 1);
+
+    // 当前提交的变更文件集合（绿点标记）
+    const markChanged = async (idx) => {
+      const deltas = await getDelta(Math.floor(idx / 500));
+      S.changed = new Set((deltas[idx % 500] || []).flatMap((op) => [op.p, op.np].filter(Boolean)));
+    };
+
+    let debounce;
+    $slider.addEventListener('input', () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(async () => {
+        await goto(+$slider.value);
+        await markChanged(S.idx);
+        renderDir(S.dir);
+      }, 120);
+    });
+    document.getElementById('prev').addEventListener('click', async () => { await goto(S.idx - 1); await markChanged(S.idx); renderDir(S.dir); });
+    document.getElementById('next').addEventListener('click', async () => { await goto(S.idx + 1); await markChanged(S.idx); renderDir(S.dir); });
+    document.getElementById('latest').addEventListener('click', async () => { await goto(S.total - 1); await markChanged(S.idx); renderDir(S.dir); });
+    document.getElementById('sha').addEventListener('change', async (e) => {
+      const v = e.target.value.trim().toLowerCase();
+      const i = S.shaIndex.findIndex((h) => h.startsWith(v));
+      if (i >= 0) { await goto(i); await markChanged(S.idx); renderDir(S.dir); }
+      else e.target.style.borderColor = '#c5382f';
+    });
+
+    const shaParam = new URLSearchParams(location.search).get('sha');
+    if (shaParam) {
+      const i = S.shaIndex.findIndex((h) => h.startsWith(shaParam.toLowerCase()));
+      await goto(i >= 0 ? i : S.total - 1);
+    } else {
+      await goto(S.total - 1);
+    }
+    await markChanged(S.idx);
+    renderDir(S.dir);
+  })();
+</script>

@@ -1,0 +1,78 @@
+---
+import Base from '../layouts/Base.astro';
+import { readShard, dataFile } from '../lib/server-data.js';
+
+const B = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const github = readShard(dataFile('github.json'));
+const overview = readShard(dataFile('overview.json'));
+
+// 公开前的提交量（仓库 created_at 2026-08-13）
+const CREATED_AT = Date.parse('2026-08-13T11:56:32Z') / 1000;
+let prePublic = 0;
+for (let i = 0; i < overview.shards.meta; i++) {
+  const metas = readShard(dataFile('commits', `meta-${String(i).padStart(5, '0')}.json`));
+  prePublic += metas.filter((m) => m.t < CREATED_AT).length;
+}
+
+const fmtDate = (ts) => new Date(ts * 1000).toISOString().slice(0, 10);
+
+// 策展里程碑 + 自动 releases
+const curated = [
+  {
+    date: '2026-06-10',
+    title: '首次提交：AI 原生仓库的起点',
+    body: 'Initialize repo with README, AGENTS.md, and CLAUDE.md symlink。从第一天起，仓库就以面向 AI 协作的方式组织（AGENTS.md 作为开发规范入口），同日即链接了 MVP 需求分析与微内核架构文档。',
+    tag: '起点',
+  },
+  {
+    date: '2026-06-10',
+    title: 'monorepo 基础设施成型',
+    body: 'Yarn 4 workspaces + tsc -b 增量构建 + dumble 打包 + vitest 测试在同一天落地，vendor/* 与 packages/* 并列 —— 「一切皆插件」的工程底座先于业务代码出现。',
+    tag: '基础设施',
+  },
+  {
+    date: '2026-06-11',
+    title: 'Agent Notes 机制启用',
+    body: '首批架构设计笔记落库（如 provider-neutral content-block vocabulary）。此后每个非平凡变更都强制附带决策笔记，记录「为什么」和「放弃了什么」—— 这构成了本站「设计笔记」板块的数据源。',
+    tag: '流程',
+  },
+  {
+    date: '2026-08-13',
+    title: '仓库公开',
+    body: `deepseek-ai/deepseek-harness 在 GitHub 公开。此时 master 上已积累了约 ${prePublic.toLocaleString()} 次提交 —— 两个月的私有开发密度可见一斑。公开后社区沿 Discussions（5,700+ 条）运转，Issues/PR 均未启用，开发以主干直推方式进行。`,
+    tag: '公开',
+  },
+];
+
+const releases = github.releases
+  .slice()
+  .sort((a, b) => (a.at < b.at ? -1 : 1))
+  .map((r) => ({
+    date: r.at.slice(0, 10),
+    title: `发布 ${r.tag}`,
+    body: `${r.prerelease ? '预发布版本。' : ''}<a href="${r.url}" target="_blank" rel="noopener">Release Notes ↗</a>`,
+    tag: 'release',
+    isRelease: true,
+  }));
+
+const events = [...curated, ...releases].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+---
+<Base active="/timeline/" title="里程碑 · dsh-study">
+  <div class="page-hero">
+    <div class="wrap">
+      <h1>里程碑 <span class="grad-text">Timeline</span></h1>
+      <p>从空仓库到插件体系成型的关键节点。版本发布由每周同步自动跟进。</p>
+    </div>
+  </div>
+  <div class="section wrap" style="max-width:860px">
+    <div class="tl">
+      {events.map((e) => (
+        <div class="tl-item">
+          <div class="tl-date">{e.date} <span class="chip" style="margin-left:6px">{e.tag}</span></div>
+          <h3>{e.title}</h3>
+          <p set:html={e.body} />
+        </div>
+      ))}
+    </div>
+  </div>
+</Base>

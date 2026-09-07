@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.astro/
+upstream.git/
+.env
+.DS_Store
+*.log
+scripts/.cache/

@@ -1,0 +1,272 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base active="/commits/" title="提交流 · dsh-study">
+  <div class="page-hero">
+    <div class="wrap">
+      <h1>提交流 <span class="grad-text">Commit Feed</span></h1>
+      <p>master 全量提交，新→旧。每条附 AI 生成的中文省流；点开看 diff。重要性 ≥4/5 的提交带高亮。</p>
+    </div>
+  </div>
+  <div class="section wrap" style="max-width:920px">
+    <div class="feed-toolbar">
+      <input type="search" id="q" placeholder="搜索标题 / sha 前 8 位…" />
+      <select id="mode">
+        <option value="all">全部提交</option>
+        <option value="imp">仅重要（≥4）</option>
+      </select>
+      <select id="cat">
+        <option value="">全部类别</option>
+        <option value="feature">feature</option>
+        <option value="fix">fix</option>
+        <option value="refactor">refactor</option>
+        <option value="perf">perf</option>
+        <option value="docs">docs</option>
+        <option value="test">test</option>
+        <option value="build">build</option>
+        <option value="ci">ci</option>
+        <option value="chore">chore</option>
+        <option value="benchmark">benchmark</option>
+      </select>
+      <select id="author"><option value="">全部作者</option></select>
+      <span class="feed-count" id="count"></span>
+    </div>
+    <div class="card" style="padding:0" id="feed">
+      <div style="padding:32px;text-align:center;color:var(--ds-ink-3)">加载中…</div>
+    </div>
+    <div class="feed-pager">
+      <button class="btn ghost sm" id="prev">← 上一页</button>
+      <span id="pager">…</span>
+      <button class="btn ghost sm" id="next">下一页 →</button>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { fetchJSON, shardN, ago, githubCommit, B } from '../lib/data.js';
+  import { renderDiff } from '../lib/diff.js';
+
+  const PAGE = 50;
+  const state = {
+    overview: null,
+    metaCache: new Map(), // si -> Promise<meta[]>
+    sumCache: new Map(),
+    searchIdx: null,      // {authors, rows}
+    page: 0, mode: 'all', cat: '', author: '', q: '',
+  };
+  const $feed = document.getElementById('feed');
+  const $pager = document.getElementById('pager');
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const getMeta = (si) => {
+    if (!state.metaCache.has(si)) state.metaCache.set(si, fetchJSON(`commits/meta-${shardN(si)}.json.gz`));
+    return state.metaCache.get(si);
+  };
+  const getSum = (si) => {
+    if (!state.sumCache.has(si)) state.sumCache.set(si, fetchJSON(`commits/sum-${shardN(si)}.json.gz`).catch(() => ({})));
+    return state.sumCache.get(si);
+  };
+
+  async function loadSearchIdx() {
+    if (!state.searchIdx) {
+      state.searchIdx = await fetchJSON('search-index.json.gz').catch(() => null);
+      if (state.searchIdx) {
+        const sel = document.getElementById('author');
+        state.searchIdx.authors.forEach((a, i) => {
+          const o = document.createElement('option');
+          o.value = String(i);
+          o.textContent = a;
+          sel.appendChild(o);
+        });
+      }
+    }
+    return state.searchIdx;
+  }
+
+  function passFilters(m, sum) {
+    if (state.author !== '' && m.an !== state.searchIdx?.authors?.[+state.author]) return false;
+    if (state.cat && (!sum || sum.c !== state.cat)) return false;
+    if (state.mode === 'imp' && (!sum || sum.i < 4)) return false;
+    return true;
+  }
+
+  async function countTotal() {
+    if (state.q) {
+      const idx = await loadSearchIdx();
+      if (!idx) return 0;
+      const needle = state.q.toLowerCase();
+      return idx.rows.filter((r) => r[3].toLowerCase().includes(needle) || r[0].startsWith(needle)).length;
+    }
+    let n = 0;
+    for (let si = state.overview.shards.meta - 1; si >= 0; si--) {
+      const meta = await getMeta(si);
+      const sum = await getSum(si);
+      for (const m of meta) if (passFilters(m, sum[m.h])) n++;
+    }
+    return n;
+  }
+
+  async function pageItems(p) {
+    const items = [];
+    if (state.q) {
+      const idx = await loadSearchIdx();
+      if (!idx) return items;
+      const needle = state.q.toLowerCase();
+      const matched = idx.rows
+        .map((r, i) => ({ r, i }))
+        .filter(({ r }) => r[3].toLowerCase().includes(needle) || r[0].startsWith(needle))
+        .reverse() // 新→旧
+        .slice(p * PAGE, (p + 1) * PAGE);
+      for (const { r } of matched) {
+        const loc = await locateBySha(r[0]);
+        if (!loc) continue;
+        const meta = await getMeta(loc.si);
+        const sum = await getSum(loc.si);
+        const m = meta[loc.pos];
+        items.push({ idx: loc.si * 500 + loc.pos, m, sum: sum[m.h] });
+      }
+      return items;
+    }
+    const want = { start: p * PAGE, end: (p + 1) * PAGE };
+    let seen = 0;
+    for (let si = state.overview.shards.meta - 1; si >= 0 && seen < want.end; si--) {
+      const meta = await getMeta(si);
+      const sum = await getSum(si);
+      for (let pos = meta.length - 1; pos >= 0; pos--) {
+        const m = meta[pos];
+        if (!passFilters(m, sum[m.h])) continue;
+        if (seen >= want.start && seen < want.end) items.push({ idx: si * 500 + pos, m, sum: sum[m.h] });
+        seen++;
+      }
+    }
+    return items;
+  }
+
+  async function locateBySha(sha8) {
+    for (let si = 0; si < state.overview.shards.meta; si++) {
+      const meta = await getMeta(si);
+      const pos = meta.findIndex((m) => m.h.startsWith(sha8));
+      if (pos >= 0) return { si, pos };
+    }
+    return null;
+  }
+
+  function rowEl({ idx, m, sum }) {
+    const el = document.createElement('div');
+    el.className = 'commit-item' + (sum && sum.i >= 4 ? ' imp' : '');
+    const head = document.createElement('div');
+    head.className = 'commit-head';
+    head.innerHTML = `
+      <span class="sha">${m.h.slice(0, 8)}</span>
+      <span class="subj">${esc(m.s)}</span>
+      ${m.m ? '<span class="chip">merge</span>' : ''}
+      ${sum ? `<span class="chip cat-${esc(sum.c)}">${esc(sum.c)}</span><span class="chip imp${sum.i}" title="AI 重要性评级">${sum.i}/5</span>` : ''}
+      <span class="meta">${esc(m.an)} · ${ago(m.t)}</span>`;
+    el.appendChild(head);
+    if (sum) {
+      const p = document.createElement('p');
+      p.className = 'commit-summary';
+      p.textContent = sum.s;
+      el.appendChild(p);
+    }
+    const detail = document.createElement('div');
+    detail.className = 'commit-detail';
+    el.appendChild(detail);
+    let loaded = false;
+    head.addEventListener('click', async () => {
+      el.classList.toggle('open');
+      if (loaded || !el.classList.contains('open')) return;
+      loaded = true;
+      detail.innerHTML = '<div style="color:var(--ds-ink-3);font-size:13px">加载 diff…</div>';
+      try {
+        const parts = [];
+        for (const txt of [sum && sum.d, m.b]) {
+          if (txt) {
+            const dp = document.createElement('div');
+            dp.className = 'commit-desc';
+            dp.textContent = txt;
+            parts.push(dp);
+          }
+        }
+        const diffs = await fetchJSON(`diffs/diff-${shardN(Math.floor(idx / 200))}.json.gz`).catch(() => ({}));
+        const entry = diffs[m.h];
+        const wrap = document.createElement('div');
+        if (entry) {
+          const box = renderDiff(entry.d);
+          if (entry.tr) {
+            const note = document.createElement('div');
+            note.className = 'diff-truncated';
+            note.textContent = `diff 过长已截断（完整改动 +${entry.add} −${entry.del}），完整内容请到 GitHub 查看。`;
+            box.appendChild(note);
+          }
+          wrap.appendChild(box);
+        } else {
+          wrap.innerHTML = '<div class="diffbox"><div class="diff-empty">无 diff（merge 提交，或改动全部为锁文件 / 快照等被过滤的噪音）。</div></div>';
+        }
+        parts.push(wrap);
+        const files = document.createElement('div');
+        files.className = 'commit-files';
+        files.textContent = `改动 ${m.st[0]} 文件 +${m.st[1]} −${m.st[2]} · ` + m.ch.slice(0, 24).map(([, p]) => p).join('  ');
+        parts.push(files);
+        const acts = document.createElement('div');
+        acts.className = 'commit-actions';
+        acts.innerHTML = `
+          <a href="${githubCommit(m.h)}" target="_blank" rel="noopener">GitHub 查看 ↗</a>
+          <a href="${B}tree/?sha=${m.h.slice(0, 8)}">在 Worktree 中看这个时刻 →</a>`;
+        parts.push(acts);
+        detail.innerHTML = '';
+        for (const el2 of parts) detail.appendChild(el2);
+      } catch (e) {
+        detail.innerHTML = `<div class="commit-desc">加载失败：${esc(e.message)}</div>`;
+      }
+    });
+    return el;
+  }
+
+  async function render() {
+    $feed.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ds-ink-3)">加载中…</div>';
+    const n = await countTotal();
+    const pages = Math.max(1, Math.ceil(n / PAGE));
+    if (state.page >= pages) state.page = pages - 1;
+    const items = await pageItems(state.page);
+    $feed.innerHTML = '';
+    if (!items.length) {
+      $feed.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ds-ink-3)">没有匹配的提交。</div>';
+    } else {
+      const frag = document.createDocumentFragment();
+      for (const it of items) frag.appendChild(rowEl(it));
+      $feed.appendChild(frag);
+    }
+    $pager.textContent = `第 ${state.page + 1} / ${pages} 页 · ${n.toLocaleString()} 条`;
+  }
+
+  document.getElementById('prev').addEventListener('click', () => { if (state.page > 0) { state.page--; render(); scrollTo({ top: 320, behavior: 'smooth' }); } });
+  document.getElementById('next').addEventListener('click', () => { state.page++; render(); scrollTo({ top: 320, behavior: 'smooth' }); });
+  document.getElementById('mode').addEventListener('change', (e) => { state.mode = e.target.value; state.page = 0; render(); });
+  document.getElementById('cat').addEventListener('change', (e) => { state.cat = e.target.value; state.page = 0; render(); });
+  document.getElementById('author').addEventListener('change', (e) => { state.author = e.target.value; state.page = 0; render(); });
+  let qTimer;
+  document.getElementById('q').addEventListener('input', (e) => {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(() => { state.q = e.target.value.trim(); state.page = 0; render(); }, 400);
+  });
+
+  (async () => {
+    state.overview = await fetchJSON('overview.json.gz');
+    await loadSearchIdx();
+    await render();
+    const sha = new URLSearchParams(location.search).get('sha');
+    if (sha) {
+      const loc = await locateBySha(sha.toLowerCase());
+      if (loc) {
+        const meta = await getMeta(loc.si);
+        const sum = await getSum(loc.si);
+        const m = meta[loc.pos];
+        const el = rowEl({ idx: loc.si * 500 + loc.pos, m, sum: sum[m.h] });
+        $feed.prepend(el);
+        el.querySelector('.commit-head').click();
+        el.scrollIntoView({ block: 'center' });
+      }
+    }
+  })();
+</script>

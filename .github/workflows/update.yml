@@ -1,0 +1,70 @@
+name: 同步上游并发布
+
+on:
+  schedule:
+    - cron: '23 2 * * 1' # 每周一 UTC 02:23（北京 10:23）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dsh-study-update
+  cancel-in-progress: false
+
+jobs:
+  sync-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 缓存上游裸仓库
+        uses: actions/cache@v4
+        with:
+          path: upstream.git
+          key: dsh-upstream-${{ github.run_id }}
+          restore-keys: dsh-upstream-
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 同步管线（提取 / 摘要 / 压缩 / 构建）
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/sync.mjs
+
+      - name: 回写数据到仓库
+        run: |
+          git config user.name "dsh-study bot"
+          git config user.email "bot@dsh-study.local"
+          git add public/data
+          if git diff --cached --quiet; then
+            echo "数据无变化"
+          else
+            git commit -m "data: 同步上游 $(date -u +%F) [skip ci]"
+            git push
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
