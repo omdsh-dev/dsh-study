@@ -1,5 +1,5 @@
 // 客户端数据工具：.json.gz 透明解压 + 格式化
-import pako from 'pako';
+import { ungzip } from 'pako';
 
 const BASE = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 export const B = BASE;
@@ -13,7 +13,8 @@ export async function fetchJSON(file) {
   const isGz = buf[0] === 0x1f && buf[1] === 0x8b;
   let text;
   if (isGz) {
-    const out = pako.ungzip(buf, { to: 'string' });
+    // pako@3 的 ESM 构建会忽略 to:'string'，可能返回 Uint8Array，需自适应
+    const out = ungzip(buf, { to: 'string' });
     text = typeof out === 'string' ? out : new TextDecoder().decode(out);
   } else {
     text = new TextDecoder().decode(buf);
