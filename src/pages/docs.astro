@@ -6,10 +6,10 @@ const B = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const docs = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
 const cats = [...new Set(docs.map((d) => d.data.category))];
 const CAT_DESC: Record<string, string> = {
-  '入门': '第一次接触 dsh，从这里开始。',
-  '架构': '理解 dsh 的设计与运行时。',
+  '入门': '第一次接触 dsh，从这里开始（建议按顺序读）。',
+  '架构': '理解 dsh 的设计、数据模型与运行时。',
   '工程实践': '值得抄走的开发流程与治理机制。',
-  '参与': '跑起来、用起来、反馈与安全。',
+  '参与': '跑起来、写插件、程序化接入。',
 };
 ---
 <Base active="/docs/" title="文档导读 · dsh-study">

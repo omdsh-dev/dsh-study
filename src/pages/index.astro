@@ -97,15 +97,20 @@ const days = Math.round((overview.headTs - overview.firstTs) / 86400);
       <h2 class="section-title">怎么看这个项目</h2>
       <p class="section-sub">按你的目的选一条路径</p>
       <div class="doc-grid">
-        <a class="card doc-card" href={`${B}docs/`}>
-          <span class="chip blue" style="margin-bottom:10px"> newcomers</span>
-          <h3>我想搞懂 dsh 是什么</h3>
-          <p>从 README、架构总览、Agent 生命周期三篇中文导读开始，20 分钟建立全景。</p>
+        <a class="card doc-card" href={`${B}work/`}>
+          <span class="chip blue" style="margin-bottom:10px">git graph</span>
+          <h3>我想看图形化的开发过程</h3>
+          <p>Git 过程图：每条 worktree 分支的分叉、并行与合入，谁做的、做了什么一目了然。</p>
         </a>
-        <a class="card doc-card" href={`${B}timeline/`}>
-          <span class="chip blue" style="margin-bottom:10px">history</span>
-          <h3>我想看它怎么长出来的</h3>
-          <p>里程碑时间线：从空仓库到插件体系成型的关键节点、版本发布与架构转折。</p>
+        <a class="card doc-card" href={`${B}docs/`}>
+          <span class="chip blue" style="margin-bottom:10px">newcomers</span>
+          <h3>我想搞懂 dsh 是什么</h3>
+          <p>19 篇中文导读：架构、论文、核心子系统、事故复盘、插件实战，从入门到贡献。</p>
+        </a>
+        <a class="card doc-card" href={`${B}commits/`}>
+          <span class="chip blue" style="margin-bottom:10px">commits</span>
+          <h3>我想逐条追踪变更</h3>
+          <p>提交流按日分组，每天一条 AI 日报；每条提交有中文省流和可读 diff。</p>
         </a>
         <a class="card doc-card" href={`${B}notes/`}>
           <span class="chip blue" style="margin-bottom:10px">decisions</span>
@@ -116,6 +121,11 @@ const days = Math.round((overview.headTs - overview.firstTs) / 86400);
           <span class="chip blue" style="margin-bottom:10px">source</span>
           <h3>我想读它的源码</h3>
           <p>Worktree 浏览器：任意提交时刻的目录树 + 文件原文，配合提交流的 diff 食用。</p>
+        </a>
+        <a class="card doc-card" href={`${B}timeline/`}>
+          <span class="chip blue" style="margin-bottom:10px">milestones</span>
+          <h3>我想看里程碑</h3>
+          <p>从私有开发到公开、首个 release 到今天：版本发布时间线每周自动更新。</p>
         </a>
       </div>
     </div>

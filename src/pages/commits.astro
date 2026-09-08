@@ -52,6 +52,7 @@ import Base from '../layouts/Base.astro';
     metaCache: new Map(), // si -> Promise<meta[]>
     sumCache: new Map(),
     searchIdx: null,      // {authors, rows}
+    daily: null,          // 每日速览
     page: 0, mode: 'all', cat: '', author: '', q: '',
   };
   const $feed = document.getElementById('feed');
@@ -234,7 +235,20 @@ import Base from '../layouts/Base.astro';
       $feed.innerHTML = '<div style="padding:32px;text-align:center;color:var(--ink-3)">没有匹配的提交。</div>';
     } else {
       const frag = document.createDocumentFragment();
-      for (const it of items) frag.appendChild(rowEl(it));
+      let lastDay = '';
+      const dailyMap = new Map((state.daily || []).map((o) => [o.d, o]));
+      for (const it of items) {
+        const d = new Date(it.m.t * 1000).toISOString().slice(0, 10);
+        if (d !== lastDay && !state.q) {
+          lastDay = d;
+          const o = dailyMap.get(d);
+          const head = document.createElement('div');
+          head.className = 'day-head';
+          head.innerHTML = `<b>${d}</b><span>${o ? `${o.n} 提交 · +${(o.add / 1000).toFixed(1)}k −${(o.del / 1000).toFixed(1)}k${o.imp ? ` · 重要 ${o.imp}` : ''}` : ''}</span>${o && o.s ? `<span class="day-s" title="${esc(o.d2 || o.s)}">📜 ${esc(o.s)}</span>` : ''}`;
+          frag.appendChild(head);
+        }
+        frag.appendChild(rowEl(it));
+      }
       $feed.appendChild(frag);
     }
     $pager.textContent = `第 ${state.page + 1} / ${pages} 页 · ${n.toLocaleString()} 条`;
@@ -253,6 +267,7 @@ import Base from '../layouts/Base.astro';
 
   (async () => {
     state.overview = await fetchJSON('overview.json.gz');
+    state.daily = await fetchJSON('daily.json.gz').catch(() => null);
     await loadSearchIdx();
     const authorParam = new URLSearchParams(location.search).get('author');
     if (authorParam && state.searchIdx) {

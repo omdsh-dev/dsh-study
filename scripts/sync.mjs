@@ -27,6 +27,7 @@ if (!process.env.SKIP_GITHUB_META) run('node', ['scripts/github-meta.mjs']);
 if (process.env.DEEPSEEK_API_KEY) {
   run('node', ['scripts/summarize.mjs']);
   run('node', ['scripts/summarize-work.mjs']);
+  run('node', ['scripts/summarize-daily.mjs']);
 } else {
   console.warn('未设 DEEPSEEK_API_KEY，跳过摘要增量（仅更新元数据）');
 }
